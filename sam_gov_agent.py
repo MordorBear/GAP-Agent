@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import html
 import os
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -94,7 +95,19 @@ ACTIVE_ONLY = os.environ.get("SAM_ACTIVE_ONLY", "true").strip().lower() not in (
 PAGE_SIZE = 1000  # SAM.gov max limit per request
 REQUEST_TIMEOUT = 60
 MAX_RETRIES = 3  # transient 429 retries before giving up on a set-aside
-OUTPUT_FILE = os.environ.get("SAM_OUTPUT_FILE", "sam_gov_listings.html")
+# Each run writes a dated report into the ``results/`` folder, e.g.
+# results/results-08-31-2026.html
+RESULTS_DIR = os.environ.get("SAM_RESULTS_DIR", "results")
+DEFAULT_OUTPUT_FILE = os.path.join(
+    RESULTS_DIR, f"results-{datetime.now().strftime('%m-%d-%Y')}.html"
+)
+OUTPUT_FILE = os.environ.get("SAM_OUTPUT_FILE", DEFAULT_OUTPUT_FILE)
+# Auto-commit the generated report to git after each run (set to "false" to skip).
+AUTO_COMMIT = os.environ.get("SAM_AUTO_COMMIT", "true").strip().lower() not in (
+    "false",
+    "0",
+    "no",
+)
 
 
 class QuotaExceeded(Exception):
@@ -515,7 +528,8 @@ def parse_args(argv=None):
         "-o",
         "--output",
         default=OUTPUT_FILE,
-        help="Path of the HTML report to generate.",
+        help="Path of the HTML report to generate "
+        "(default: results/results-MM-DD-YYYY.html).",
     )
     parser.add_argument(
         "-m",
@@ -599,11 +613,62 @@ def main(argv=None):
     )
 
     report = build_html(processed)
+    out_dir = os.path.dirname(OUTPUT_FILE)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as fh:
         fh.write(report)
 
     print(f"\nReport written to: {os.path.abspath(OUTPUT_FILE)}")
     print("Open it in your web browser to review the opportunities.")
+
+    if AUTO_COMMIT:
+        commit_report(OUTPUT_FILE, len(processed))
+
+
+def commit_report(path, count):
+    """Stage and commit the generated report to the git repository.
+
+    Runs from the repo root (the script's own directory) so it works no
+    matter where the agent is invoked from. Fails gracefully if git is
+    unavailable or the directory is not a git repository.
+    """
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    try:
+        inside = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+        )
+        if inside.returncode != 0 or inside.stdout.strip() != "true":
+            print("Skipping auto-commit: not a git repository.")
+            return
+
+        subprocess.run(["git", "add", "-f", path], cwd=repo_root, check=True)
+
+        # Nothing to commit if the report is unchanged from the last run.
+        diff = subprocess.run(
+            ["git", "diff", "--cached", "--quiet", "--", path], cwd=repo_root
+        )
+        if diff.returncode == 0:
+            print("Auto-commit: report unchanged, nothing to commit.")
+            return
+
+        message = (
+            f"Add results report {os.path.basename(path)} "
+            f"({count} opportunities) - "
+            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        subprocess.run(
+            ["git", "commit", "-m", message], cwd=repo_root, check=True
+        )
+        print(f"Auto-commit: committed {path} to git.")
+        print("Run 'git push' to publish the report to the remote repository.")
+    except FileNotFoundError:
+        print("Skipping auto-commit: git is not installed.")
+    except subprocess.CalledProcessError as exc:
+        print(f"Auto-commit failed: {exc}")
 
 
 if __name__ == "__main__":

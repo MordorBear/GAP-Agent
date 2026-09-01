@@ -23,10 +23,13 @@ Set-aside programs searched:
    $10,000** (configurable).
 4. De-duplicates, then sorts results by **NAICS category** and, within each
    category, by **dollar value (highest first)**.
-5. Writes **`sam_gov_listings.html`** — a responsive report with a summary
-   header, category navigation, and a color-coded card for every opportunity
-   (title, solicitation #, set-aside type, NAICS, value, agency, office,
-   response deadline, place of performance, and a direct link to SAM.gov).
+5. Writes a dated **`results/results-MM-DD-YYYY.html`** report — a responsive
+   report with a summary header, category navigation, and a color-coded card
+   for every opportunity (title, solicitation #, set-aside type, NAICS, value,
+   agency, office, response deadline, place of performance, and a direct link
+   to SAM.gov).
+6. **Auto-commits** the generated report to the git repository so every run is
+   tracked in version history (run `git push` to publish it to the remote).
 
 ## Getting a SAM.gov API key
 
@@ -72,7 +75,7 @@ python sam_gov_agent.py --help
 
 | Flag | Description | Default |
 |---|---|---|
-| `-o`, `--output` | Path of the HTML report to generate | `sam_gov_listings.html` |
+| `-o`, `--output` | Path of the HTML report to generate | `results/results-MM-DD-YYYY.html` |
 | `-m`, `--min-value` | Minimum estimated/award value (USD) | `10000` |
 | `-d`, `--days` | How many days back to search (max 364) | `364` |
 | `-s`, `--set-aside` | Limit to specific set-aside code(s); repeatable | all |
@@ -91,14 +94,20 @@ python sam_gov_agent.py -o reports/opportunities.html
 ```
 
 Environment variables (`SAM_MIN_VALUE`, `SAM_LOOKBACK_DAYS`,
-`SAM_INCLUDE_UNKNOWN_VALUE`, `SAM_ACTIVE_ONLY`, `SAM_OUTPUT_FILE`) can also be
-set in `.env`; command-line flags always take precedence.
+`SAM_INCLUDE_UNKNOWN_VALUE`, `SAM_ACTIVE_ONLY`, `SAM_OUTPUT_FILE`,
+`SAM_RESULTS_DIR`, `SAM_AUTO_COMMIT`) can also be set in `.env`; command-line
+flags always take precedence.
 
 ## Output
 
-The agent writes **`sam_gov_listings.html`** to the current directory (or the
-`--output` path). Open it in any web browser to review, print, or share the
-opportunities.
+Each run writes a dated report to the **`results/`** folder, named
+**`results-MM-DD-YYYY.html`** (or the `--output` path). Open it in any web
+browser to review, print, or share the opportunities.
+
+After writing the report, the agent **automatically commits it to git** so each
+run is preserved in version history. Run `git push` afterward to publish the
+report to your remote repository. To disable auto-committing, set
+`SAM_AUTO_COMMIT=false` in your `.env` file.
 
 > **Daily API quota:** SAM.gov public keys have a daily request limit. A full
 > default run (all set-asides over ~1 year) makes many paginated calls; if you

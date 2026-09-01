@@ -1,7 +1,7 @@
 # Secrets - never commit your real API key
 .env
 
-# Generated report
+# Legacy generated report (dated reports in results/ ARE committed on purpose)
 sam_gov_listings.html
 
 # Python
