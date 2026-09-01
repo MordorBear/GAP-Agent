@@ -56,7 +56,7 @@ cp .env.example .env
 
 ## Running the agent
 
-Run with defaults (all set-asides, value > $10,000, last 365 days, active only):
+Run with defaults (all set-asides, value > $10,000, last 364 days, active only):
 
 ```bash
 python sam_gov_agent.py
@@ -74,7 +74,7 @@ python sam_gov_agent.py --help
 |---|---|---|
 | `-o`, `--output` | Path of the HTML report to generate | `sam_gov_listings.html` |
 | `-m`, `--min-value` | Minimum estimated/award value (USD) | `10000` |
-| `-d`, `--days` | How many days back to search (max 365) | `365` |
+| `-d`, `--days` | How many days back to search (max 364) | `364` |
 | `-s`, `--set-aside` | Limit to specific set-aside code(s); repeatable | all |
 | `--include-all` | Include opportunities regardless of active status | off |
 | `--exclude-unknown-value` | Exclude opportunities with no published value | off |
@@ -99,6 +99,12 @@ set in `.env`; command-line flags always take precedence.
 The agent writes **`sam_gov_listings.html`** to the current directory (or the
 `--output` path). Open it in any web browser to review, print, or share the
 opportunities.
+
+> **Daily API quota:** SAM.gov public keys have a daily request limit. A full
+> default run (all set-asides over ~1 year) makes many paginated calls; if you
+> hit the quota the agent stops cleanly, writes a report from whatever it
+> retrieved, and tells you to re-run after the quota resets (00:00 UTC). To use
+> fewer requests, narrow the search, e.g. `-d 30` or a specific `-s CODE`.
 
 > Many active solicitations do not publish a firm dollar figure. By default
 > these are still shown (value listed as "Not specified"). Use

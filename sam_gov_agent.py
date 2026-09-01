@@ -79,8 +79,10 @@ INCLUDE_UNKNOWN_VALUE = os.environ.get(
     "SAM_INCLUDE_UNKNOWN_VALUE", "true"
 ).strip().lower() not in ("false", "0", "no")
 
-# How many days back to search (SAM.gov requires postedFrom/postedTo, max 1yr).
-LOOKBACK_DAYS = int(os.environ.get("SAM_LOOKBACK_DAYS", "365"))
+# How many days back to search. SAM.gov requires postedFrom/postedTo and
+# rejects ranges that are 1 year or more apart, so we cap at 364 days.
+MAX_LOOKBACK_DAYS = 364
+LOOKBACK_DAYS = int(os.environ.get("SAM_LOOKBACK_DAYS", str(MAX_LOOKBACK_DAYS)))
 
 # Only include opportunities that are still active (response deadline open).
 ACTIVE_ONLY = os.environ.get("SAM_ACTIVE_ONLY", "true").strip().lower() not in (
@@ -91,7 +93,12 @@ ACTIVE_ONLY = os.environ.get("SAM_ACTIVE_ONLY", "true").strip().lower() not in (
 
 PAGE_SIZE = 1000  # SAM.gov max limit per request
 REQUEST_TIMEOUT = 60
+MAX_RETRIES = 3  # transient 429 retries before giving up on a set-aside
 OUTPUT_FILE = os.environ.get("SAM_OUTPUT_FILE", "sam_gov_listings.html")
+
+
+class QuotaExceeded(Exception):
+    """Raised when the API returns a hard daily-quota / throttle block."""
 
 
 # --------------------------------------------------------------------------- #
@@ -190,6 +197,7 @@ def fetch_for_set_aside(api_key: str, code: str, posted_from: str, posted_to: st
     """Fetch all opportunities for a single set-aside code, handling pagination."""
     results = []
     offset = 0
+    retries = 0
     while True:
         params = {
             "api_key": api_key,
@@ -206,8 +214,29 @@ def fetch_for_set_aside(api_key: str, code: str, posted_from: str, posted_to: st
             break
 
         if resp.status_code == 429:
-            print("  ! Rate limited (HTTP 429). Waiting 10s and retrying...")
-            time.sleep(10)
+            body = resp.text.lower()
+            # A hard daily-quota block cannot be waited out in-process; stop
+            # cleanly so the run doesn't hang until midnight.
+            if "quota" in body or "throttled out" in body:
+                print(
+                    "  ! Daily API quota exceeded for this key. "
+                    "Stopping. Try again after the quota resets "
+                    "(usually 00:00 UTC), or use a different API key."
+                )
+                raise QuotaExceeded()
+            if retries >= MAX_RETRIES:
+                print(
+                    f"  ! Still rate limited after {MAX_RETRIES} retries; "
+                    f"skipping remaining pages for {code}."
+                )
+                break
+            retries += 1
+            wait = 10 * retries
+            print(
+                f"  ! Rate limited (HTTP 429). Waiting {wait}s "
+                f"(retry {retries}/{MAX_RETRIES})..."
+            )
+            time.sleep(wait)
             continue
         if resp.status_code != 200:
             snippet = resp.text[:300]
@@ -241,9 +270,16 @@ def fetch_all(api_key: str):
     print(f"Searching SAM.gov opportunities posted {posted_from} - {posted_to}\n")
 
     seen = {}
+    quota_hit = False
     for code, label in SET_ASIDE_CODES.items():
         print(f"Querying set-aside: {code} ({label})")
-        for opp in fetch_for_set_aside(api_key, code, posted_from, posted_to):
+        try:
+            batch = fetch_for_set_aside(api_key, code, posted_from, posted_to)
+        except QuotaExceeded:
+            quota_hit = True
+            print()
+            break
+        for opp in batch:
             notice_id = opp.get("noticeId") or opp.get("solicitationNumber")
             if not notice_id:
                 notice_id = id(opp)
@@ -253,6 +289,12 @@ def fetch_all(api_key: str):
             if notice_id not in seen:
                 seen[notice_id] = opp
         print()
+    if quota_hit:
+        print(
+            "NOTE: The report was built from PARTIAL results because the daily "
+            "API quota was reached. Re-run after the quota resets for a "
+            "complete report.\n"
+        )
     return list(seen.values())
 
 
@@ -487,7 +529,7 @@ def parse_args(argv=None):
         "--days",
         type=int,
         default=LOOKBACK_DAYS,
-        help="How many days back to search (max 365).",
+        help="How many days back to search (max 364; SAM.gov 1-year limit).",
     )
     parser.add_argument(
         "-s",
@@ -527,7 +569,7 @@ def main(argv=None):
     args = parse_args(argv)
 
     MIN_VALUE = args.min_value
-    LOOKBACK_DAYS = max(1, min(args.days, 365))
+    LOOKBACK_DAYS = max(1, min(args.days, MAX_LOOKBACK_DAYS))
     OUTPUT_FILE = args.output
     if args.include_all:
         ACTIVE_ONLY = False
