@@ -1,0 +1,14 @@
+# Secrets - never commit your real API key
+.env
+
+# Generated report
+sam_gov_listings.html
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.DS_Store
