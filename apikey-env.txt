@@ -1,0 +1,1 @@
+Your key was only used in the local git-ignored .env for testing — it is not committed. Before running, the PR notes you must set SAM_GOV_API_KEY in a .env file.

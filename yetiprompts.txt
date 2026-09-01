@@ -1,0 +1,47 @@
+SAM.gov Agent Development - Conversation Prompts Log
+========================================================
+
+USER PROMPT 1:
+"I want to create an agent that can fetch listings from sam.gov to bid on. If possible I want to look for specific set aside contracts that are for a company owned by 2 people, 1 a minority woman and 2 a female disabled veteran. I want this agent to login via api key that I will provide and find the listings applicable, and then download the full details of the listings, and sort them by category and total dollar value. I then want to save the results as a local .html file with links to the listing on sam.gov for review."
+
+ASSISTANT RESPONSE 1 (Clarification):
+Asked 5 clarifying questions:
+1. SAM.gov API Key - ready to paste or prefer secure input form?
+2. Set-aside types - suggested WOSB, EDWOSB, SDVOSB, 8(a) - search for all or specific ones?
+3. NAICS / Category filter - all industries or specific codes?
+4. Dollar value range - any min/max filter?
+5. Output location - where should .html file be saved?
+
+USER PROMPT 2:
+"1. I will paste the api key in here. 2. search for all of the above. listings across all industries. 4. dollar value range over 10000 usd. 5. output location my git repo here: https://github.com/MordorBear/GAP-Agent"
+
+ASSISTANT RESPONSE 2:
+Built the complete SAM.gov agent with the following specifications:
+- Queries SAM.gov Opportunities API v2
+- Searches for all 4 set-aside types: WOSB, EDWOSB, SDVOSB, 8(a)
+- Filters for contracts > $10,000
+- Sorts by NAICS category, then dollar value (descending)
+- Generates responsive HTML report with:
+  * Color-coded set-aside badges
+  * Category navigation/TOC
+  * Direct links to sam.gov
+  * Comprehensive contract details
+- Created PR #1 to GitHub repo MordorBear/GAP-Agent
+- Files created:
+  * sam_gov_agent.py (main CLI agent)
+  * requirements.txt (requests, python-dotenv)
+  * .env.example (API key template)
+  * .gitignore (protects secrets)
+  * README.md (full documentation)
+
+USER PROMPT 3:
+"write the text in quotes to a apikey-env.txt file in the repo 'Your key was only used in the local git-ignored .env for testing — it is not committed. Before running, the PR notes you must set SAM_GOV_API_KEY in a .env file.'"
+
+ASSISTANT RESPONSE 3:
+Created apikey-env.txt with the specified text and pushed to feature branch.
+
+USER PROMPT 4:
+"write all prompts used here to a file in that repo named 'yetiprompts.txt'"
+
+ASSISTANT RESPONSE 4:
+This file - yetiprompts.txt - comprehensive log of all conversation prompts and responses.

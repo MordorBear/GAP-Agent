@@ -1,0 +1,126 @@
+# GAP-Agent — SAM.gov Set-Aside Contract Fetching Agent
+
+A command-line agent that searches the U.S. Government's
+[SAM.gov](https://sam.gov) Opportunities API for **active federal contract
+opportunities** that are set aside for the following small-business programs and
+generates a clean, professional **HTML report** you can open in any browser.
+
+Set-aside programs searched:
+
+| Code(s) | Program |
+|---|---|
+| `WOSB`, `WOSBSS` | Women-Owned Small Business |
+| `EDWOSB`, `EDWOSBSS` | Economically Disadvantaged Women-Owned Small Business |
+| `SDVOSBC`, `SDVOSBS` | Service-Disabled Veteran-Owned Small Business |
+| `8A`, `8AN` | 8(a) Business Development |
+
+## What it does
+
+1. Reads your `SAM_GOV_API_KEY` from the environment (or a `.env` file).
+2. Queries the [SAM.gov Opportunities API v2](https://open.gsa.gov/api/get-opportunities-public-api/)
+   for each set-aside program, handling pagination to retrieve **all** matches.
+3. Filters to opportunities with an estimated / award value **greater than
+   $10,000** (configurable).
+4. De-duplicates, then sorts results by **NAICS category** and, within each
+   category, by **dollar value (highest first)**.
+5. Writes a dated **`results/results-MM-DD-YYYY.html`** report — a responsive
+   report with a summary header, category navigation, and a color-coded card
+   for every opportunity (title, solicitation #, set-aside type, NAICS, value,
+   agency, office, response deadline, place of performance, and a direct link
+   to SAM.gov).
+6. **Auto-commits** the generated report to the git repository so every run is
+   tracked in version history (run `git push` to publish it to the remote).
+
+## Getting a SAM.gov API key
+
+1. Sign in / create an account at <https://sam.gov/profile/details>.
+2. Under **System Accounts → API Key**, generate a personal public API key.
+3. Copy the key — you'll put it in your `.env` file below.
+
+## Installation
+
+```bash
+git clone https://github.com/MordorBear/GAP-Agent.git
+cd GAP-Agent
+pip install -r requirements.txt
+```
+
+## Setup
+
+Copy the example environment file and add your key:
+
+```bash
+cp .env.example .env
+# then edit .env and set:
+#   SAM_GOV_API_KEY=your_real_key_here
+```
+
+> **Note:** `.env` is git-ignored so your key is never committed.
+
+## Running the agent
+
+Run with defaults (all set-asides, value > $10,000, last 364 days, active only):
+
+```bash
+python sam_gov_agent.py
+```
+
+### Command-line options
+
+The agent runs on command with configurable flags:
+
+```bash
+python sam_gov_agent.py --help
+```
+
+| Flag | Description | Default |
+|---|---|---|
+| `-o`, `--output` | Path of the HTML report to generate | `results/results-MM-DD-YYYY.html` |
+| `-m`, `--min-value` | Minimum estimated/award value (USD) | `10000` |
+| `-d`, `--days` | How many days back to search (max 364) | `364` |
+| `-s`, `--set-aside` | Limit to specific set-aside code(s); repeatable | all |
+| `--include-all` | Include opportunities regardless of active status | off |
+| `--exclude-unknown-value` | Exclude opportunities with no published value | off |
+| `--api-key` | Pass the API key directly (env var preferred) | — |
+
+**Examples**
+
+```bash
+# Only WOSB and EDWOSB, value over $50k, last 90 days
+python sam_gov_agent.py -s WOSB -s EDWOSB -m 50000 -d 90
+
+# Custom output location
+python sam_gov_agent.py -o reports/opportunities.html
+```
+
+Environment variables (`SAM_MIN_VALUE`, `SAM_LOOKBACK_DAYS`,
+`SAM_INCLUDE_UNKNOWN_VALUE`, `SAM_ACTIVE_ONLY`, `SAM_OUTPUT_FILE`,
+`SAM_RESULTS_DIR`, `SAM_AUTO_COMMIT`) can also be set in `.env`; command-line
+flags always take precedence.
+
+## Output
+
+Each run writes a dated report to the **`results/`** folder, named
+**`results-MM-DD-YYYY.html`** (or the `--output` path). Open it in any web
+browser to review, print, or share the opportunities.
+
+After writing the report, the agent **automatically commits it to git** so each
+run is preserved in version history. Run `git push` afterward to publish the
+report to your remote repository. To disable auto-committing, set
+`SAM_AUTO_COMMIT=false` in your `.env` file.
+
+> **Daily API quota:** SAM.gov public keys have a daily request limit. A full
+> default run (all set-asides over ~1 year) makes many paginated calls; if you
+> hit the quota the agent stops cleanly, writes a report from whatever it
+> retrieved, and tells you to re-run after the quota resets (00:00 UTC). To use
+> fewer requests, narrow the search, e.g. `-d 30` or a specific `-s CODE`.
+
+> Many active solicitations do not publish a firm dollar figure. By default
+> these are still shown (value listed as "Not specified"). Use
+> `--exclude-unknown-value` to hide them.
+
+## Disclaimer
+
+Data is sourced live from the SAM.gov Opportunities API and is provided for
+informational purposes only. Always verify opportunity details directly on
+[SAM.gov](https://sam.gov) before acting on them.
